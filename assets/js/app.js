@@ -844,7 +844,19 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(bodyObj),
         });
-        const data = await response.json();
+
+        const rawText = await response.text();
+        let data;
+        try {
+            data = JSON.parse(rawText);
+        } catch (e) {
+            const cleanText = rawText.replace(/<[^>]*>?/gm, ' ').replace(/\s+/g, ' ').trim();
+            const preview = cleanText.length > 250 ? cleanText.slice(0, 250) + '...' : cleanText;
+            const errorMsg = preview || `HTTP ${response.status} ${response.statusText || 'Server Error'}`;
+            console.error(`[API] Invalid JSON received for action "${action}":`, rawText);
+            throw new Error(`Server returned non-JSON response: ${errorMsg}`);
+        }
+
         if (!response.ok || data.ok === false) {
             if (data.code === 'UNAUTHORIZED') {
                 handleUnauthenticated();
@@ -3129,15 +3141,18 @@
                 body: formData,
             });
 
+            const rawText = await response.text();
             let res;
             try {
-                res = await response.json();
+                res = JSON.parse(rawText);
             } catch (parseErr) {
                 if (response.status === 413) {
                     showFileTooLargeAlert(file.size);
                     return;
                 }
-                throw new Error('Server returned invalid response');
+                const cleanText = rawText.replace(/<[^>]*>?/gm, ' ').replace(/\s+/g, ' ').trim();
+                const preview = cleanText.length > 250 ? cleanText.slice(0, 250) + '...' : cleanText;
+                throw new Error(`Upload server error: ${preview || 'Server returned invalid response'}`);
             }
 
             if (response.status === 413 || (res && !res.ok && res.error && res.error.includes('128 MB'))) {

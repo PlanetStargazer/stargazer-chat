@@ -5,6 +5,27 @@ declare(strict_types=1);
  * Stargazer Chat Backend — Accounts, Channels, Contacts, Text Chat & 6-Peer Video/Voice
  */
 
+@ini_set('display_errors', '0');
+error_reporting(E_ALL & ~E_NOTICE & ~E_DEPRECATED);
+if (ob_get_level() === 0) {
+    ob_start();
+}
+
+register_shutdown_function(function () {
+    $error = error_get_last();
+    if ($error && in_array($error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true)) {
+        if (ob_get_length()) {
+            ob_clean();
+        }
+        http_response_code(500);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode([
+            'ok' => false,
+            'error' => 'Fatal Server Error: ' . $error['message'] . ' in ' . basename($error['file']) . ' on line ' . $error['line'],
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    }
+});
+
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Pragma: no-cache');
@@ -400,6 +421,9 @@ SQL;
 function respond(array $data, int $status = 200): never
 {
     http_response_code($status);
+    if (ob_get_length()) {
+        ob_clean();
+    }
     echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit;
 }
@@ -2516,19 +2540,6 @@ try {
                     'avatarUrl' => (string)$user['avatar_url'],
                     'type' => $msgType,
                     'content' => $msgContent,
-                    'createdAt' => $now,
-                    'editedAt' => 0,
-                ],
-            ]);
-        }
-                    'roomId' => $roomId,
-                    'peerId' => $peerId,
-                    'userId' => (string)$user['user_id'],
-                    'username' => (string)$user['username'],
-                    'avatarColor' => (string)$user['avatar_color'],
-                    'avatarUrl' => (string)$user['avatar_url'],
-                    'type' => 'image',
-                    'content' => $imageRelPath,
                     'createdAt' => $now,
                     'editedAt' => 0,
                 ],
