@@ -2,7 +2,8 @@
 
 > A modern, self-hosted real-time communication platform featuring text channels, direct messaging, multi-party WebRTC mesh voice and video calling, screen sharing, automatic URL image previews on hover, and drag-and-drop file sharing.
 >
-> **Developed by [Antigravity](https://deepmind.google/)** (Google DeepMind's Advanced Agentic Coding Assistant) in pair programming collaboration with **PlanetStargazer** (`ezekiel.stargazer@gmail.com`).
+> **Project Lead**: **Michael Wolf** ([PlanetStargazer](https://github.com/PlanetStargazer), `ezekiel.stargazer@gmail.com`)  
+> **Architected & Coded by**: [Antigravity](https://deepmind.google/) (Google DeepMind's Advanced Agentic Coding Assistant) in pair programming collaboration with Michael Wolf.
 
 ---
 
@@ -123,5 +124,5 @@ memory_limit = 256M
 
 ## 👤 Credits
 
-- **Author & Project Owner**: [PlanetStargazer](https://github.com/PlanetStargazer) (`ezekiel.stargazer@gmail.com`)
+- **Project Lead & Owner**: **Michael Wolf** ([PlanetStargazer](https://github.com/PlanetStargazer), `ezekiel.stargazer@gmail.com`)
 - **Architected & Coded by**: [Antigravity](https://deepmind.google/) (Google DeepMind Advanced Agentic Coding)
