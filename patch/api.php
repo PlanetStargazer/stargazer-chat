@@ -227,6 +227,14 @@ CREATE TABLE IF NOT EXISTS url_previews (
     created_at INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_url_previews_time ON url_previews(created_at);
+
+CREATE TABLE IF NOT EXISTS deleted_messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    message_id INTEGER NOT NULL,
+    room_id TEXT NOT NULL,
+    deleted_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_del_msg_room_time ON deleted_messages(room_id, deleted_at);
 SQL;
         $this->exec($schema);
 
@@ -637,6 +645,11 @@ function cleanupStaleData(ChatDatabase $db): void
 
     // Clean up old cached URL previews older than 7 days
     $db->execute('DELETE FROM url_previews WHERE created_at < :cutoff', [':cutoff' => $now - 604800]);
+
+    // Clean up old deleted message notices older than 5 minutes
+    try {
+        $db->execute('DELETE FROM deleted_messages WHERE deleted_at < :cutoff', [':cutoff' => $now - 300]);
+    } catch (\Throwable $e) {}
 
     // Also scan uploads directory for any orphan/temporary files older than 7 days
     $uploadDir = __DIR__ . '/uploads';
@@ -2116,6 +2129,12 @@ try {
                 );
             }
 
+            $deletedRows = $db->queryAll(
+                'SELECT message_id FROM deleted_messages WHERE room_id = :rid AND deleted_at > :cutoff',
+                [':rid' => $textRoomId, ':cutoff' => $now - 60]
+            );
+            $deletedMessageIds = array_map(static fn(array $r): int => (int)$r['message_id'], $deletedRows);
+
             respond([
                 'ok' => true,
                 'activeRoomId' => $textRoomId,
@@ -2127,6 +2146,7 @@ try {
                 'outgoingInvite' => getOutgoingInviteStatus($db, (string)$user['user_id']),
                 'messages' => formatMessages($newMessages),
                 'editedMessages' => formatMessages($editedMessages),
+                'deletedMessageIds' => $deletedMessageIds,
                 'callParticipants' => $callParticipants,
                 'signals' => $signals,
             ]);
@@ -2257,9 +2277,64 @@ try {
             ]);
         }
 
+        case 'delete_message': {
+            $user = requireAuthenticatedUser($db, $input);
+            $messageId = (int)($input['message_id'] ?? 0);
+            if ($messageId <= 0) {
+                respond(['ok' => false, 'error' => 'Invalid message ID.'], 400);
+            }
+
+            $msg = $db->queryOne('SELECT * FROM messages WHERE id = :id', [':id' => $messageId]);
+            if (!$msg) {
+                respond(['ok' => false, 'error' => 'Message not found.'], 404);
+            }
+
+            if ((string)$msg['user_id'] !== (string)$user['user_id'] && empty($user['is_admin'])) {
+                respond(['ok' => false, 'error' => 'You can only delete your own uploads or messages.'], 403);
+            }
+
+            // Remove file from server disk if type is image or file
+            if ($msg['type'] === 'image' || $msg['type'] === 'file') {
+                $fileRel = null;
+                if ($msg['type'] === 'image') {
+                    $fileRel = (string)$msg['content'];
+                } else {
+                    $decoded = json_decode((string)$msg['content'], true);
+                    if (is_array($decoded) && !empty($decoded['url'])) {
+                        $fileRel = (string)$decoded['url'];
+                    }
+                }
+                if ($fileRel) {
+                    $base = basename($fileRel);
+                    $full = __DIR__ . '/uploads/' . $base;
+                    if (is_file($full)) {
+                        @unlink($full);
+                    }
+                }
+            }
+
+            $db->execute('DELETE FROM messages WHERE id = :id', [':id' => $messageId]);
+            $db->execute(
+                'INSERT INTO deleted_messages (message_id, room_id, deleted_at) VALUES (:mid, :rid, :now)',
+                [':mid' => $messageId, ':rid' => $msg['room_id'], ':now' => $now]
+            );
+
+            respond([
+                'ok' => true,
+                'messageId' => $messageId,
+                'roomId' => $msg['room_id'],
+            ]);
+        }
+
         case 'url_preview': {
             $user = requireAuthenticatedUser($db, $input);
             $rawUrl = trim((string)($input['url'] ?? ($_GET['url'] ?? '')));
+            if ($rawUrl === '') {
+                respond(['ok' => false, 'error' => 'Missing URL'], 400);
+            }
+            if (!preg_match('#^https?://#i', $rawUrl)) {
+                $rawUrl = 'https://' . $rawUrl;
+            }
             if (!filter_var($rawUrl, FILTER_VALIDATE_URL)) {
                 respond(['ok' => false, 'error' => 'Invalid URL'], 400);
             }

@@ -294,6 +294,7 @@
         filePreviewTitle: document.getElementById('file-preview-modal-title'),
         filePreviewContent: document.getElementById('file-preview-modal-content'),
         filePreviewDownload: document.getElementById('file-preview-modal-download'),
+        filePreviewDeleteBtn: document.getElementById('file-preview-modal-delete'),
         closeFilePreviewBtn: document.getElementById('close-file-preview-btn'),
         doneFilePreviewBtn: document.getElementById('done-file-preview-btn'),
 
@@ -305,6 +306,7 @@
         imageLightboxModal: document.getElementById('image-lightbox-modal'),
         lightboxImg: document.getElementById('lightbox-img'),
         lightboxDownloadLink: document.getElementById('lightbox-download-link'),
+        lightboxDeleteBtn: document.getElementById('lightbox-delete-btn'),
         closeLightboxBtn: document.getElementById('close-lightbox-btn'),
 
         // Admin Navigation Tabs & Panes
@@ -497,11 +499,20 @@
                     <div class="file-actions">
                         ${isText ? `
                             <button type="button" class="btn-file-preview" title="Quick View" data-preview-file="${fileUrl}" data-preview-name="${fileName}">
-                                👁️ View
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                    <circle cx="12" cy="12" r="3"></circle>
+                                </svg>
+                                <span>View</span>
                             </button>
                         ` : ''}
                         <a href="${fileUrl}" download="${fileName}" class="btn-file-download" title="Download ${fileName}">
-                            ⬇️ Download
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                <polyline points="7 10 12 15 17 10"></polyline>
+                                <line x1="12" y1="15" x2="12" y2="3"></line>
+                            </svg>
+                            <span>Download</span>
                         </a>
                     </div>
                 </div>
@@ -515,14 +526,17 @@
 
         const withEmojis = parseEmoticonsToEmoji(text);
         const escaped = escapeHtml(withEmojis);
-        let formatted = escaped.replace(/(https?:\/\/[^\s<]+)/g, (match) => {
+        const urlRegex = /(https?:\/\/[^\s<]+|www\.[a-zA-Z0-9-]+\.[^\s<]+|(?<![\w@])(?:[a-zA-Z0-9-]+\.)+(?:com|org|net|edu|gov|mil|io|de|app|co|dev|info|me|ai|tech|online|xyz|ca|uk|fr|nl|ru|ch|it|es|eu|se|no|fi|dk|cz|pl|at|be|au|nz|jp|cn|in|br|tv|cc|to|space|site|cloud|store|pro|live|club|top|vip|wiki|link|page|media|mobi|biz|us|agency|blog|digital|gg|is|so|fm)(?::\d{1,5})?(?:\/[^\s<]*)?)/gi;
+
+        let formatted = escaped.replace(urlRegex, (match) => {
             let clean = match;
             let trailing = '';
             while (/[.,!?:;)]$/.test(clean)) {
                 trailing = clean.slice(-1) + trailing;
                 clean = clean.slice(0, -1);
             }
-            return `<a href="${clean}" class="chat-preview-link" data-preview-url="${clean}" target="_blank" rel="noopener noreferrer">${clean}</a>${trailing}`;
+            const href = /^https?:\/\//i.test(clean) ? clean : `https://${clean}`;
+            return `<a href="${href}" class="chat-preview-link" data-preview-url="${href}" target="_blank" rel="noopener noreferrer">${clean}</a>${trailing}`;
         });
 
         // Highlight mentions: @username
@@ -2324,6 +2338,12 @@
                 });
             }
 
+            if (Array.isArray(res.deletedMessageIds) && res.deletedMessageIds.length > 0) {
+                res.deletedMessageIds.forEach(id => {
+                    removeRenderedMessage(id);
+                });
+            }
+
             if (state.inCall) {
                 if (Array.isArray(res.callParticipants)) {
                     reconcileCallParticipants(res.callParticipants);
@@ -2589,6 +2609,8 @@
                     if (packet.message.roomId === state.activeTextRoomId) {
                         updateRenderedMessage(packet.message);
                     }
+                } else if (packet.type === 'delete-msg' && packet.messageId) {
+                    removeRenderedMessage(packet.messageId);
                 } else if (packet.type === 'media-state') {
                     const p = state.participants.get(session.peerId);
                     if (p) {
@@ -2891,7 +2913,12 @@
     function canEditMessage(msg) {
         if (!state.user || !msg) return false;
         if (msg.type === 'image' || msg.type === 'file') return false; // editing is for text messages
-        return msg.userId === state.user.userId || state.user.role === 'admin';
+        return msg.userId === state.user.userId || state.user.role === 'admin' || Boolean(state.user.isAdmin);
+    }
+
+    function canDeleteMessage(msg) {
+        if (!state.user || !msg) return false;
+        return String(msg.userId) === String(state.user.userId) || Boolean(state.user.isAdmin) || state.user.role === 'admin';
     }
 
     function resetAndRenderMessages(messages) {
@@ -2935,6 +2962,8 @@
         }
 
         const isEditable = canEditMessage(msg);
+        const canDelete = canDeleteMessage(msg);
+        const hasActions = isEditable || canDelete;
         const editedBadgeHtml = (msg.editedAt && msg.editedAt > 0)
             ? `<span class="chat-edited-badge" title="Edited ${(new Date(msg.editedAt * 1000)).toLocaleString()}">(edited)</span>`
             : '';
@@ -2952,14 +2981,24 @@
                 </div>
                 <div class="chat-text">${formatMessageBody(msg.content, msg.type)}</div>
             </div>
-            ${isEditable ? `
+            ${hasActions ? `
                 <div class="chat-row-actions">
-                    <button type="button" class="chat-msg-btn edit-msg-btn" title="Edit message (or press Up in message bar)">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M12 20h9"/>
-                            <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
-                        </svg>
-                    </button>
+                    ${isEditable ? `
+                        <button type="button" class="chat-msg-btn edit-msg-btn" title="Edit message (or press Up in message bar)">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M12 20h9"/>
+                                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+                            </svg>
+                        </button>
+                    ` : ''}
+                    ${canDelete ? `
+                        <button type="button" class="chat-msg-btn delete-msg-btn" title="${msg.type === 'image' ? 'Delete uploaded image' : (msg.type === 'file' ? 'Delete uploaded file' : 'Delete message')}">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="3 6 5 6 21 6"></polyline>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                            </svg>
+                        </button>
+                    ` : ''}
                 </div>
             ` : ''}
         `;
@@ -2972,14 +3011,64 @@
             });
         }
 
+        const deleteBtn = row.querySelector('.delete-msg-btn');
+        if (deleteBtn) {
+            deleteBtn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const typeName = msg.type === 'image' ? 'image' : (msg.type === 'file' ? 'file' : 'message');
+                if (!confirm(`Are you sure you want to delete this ${typeName}?`)) return;
+
+                try {
+                    deleteBtn.disabled = true;
+                    await apiRequest('delete_message', { message_id: msg.id });
+                    removeRenderedMessage(msg.id);
+                    broadcastDataChannelControl({
+                        type: 'delete-msg',
+                        messageId: msg.id,
+                        roomId: msg.roomId,
+                    });
+                    showToast(`${typeName.charAt(0).toUpperCase() + typeName.slice(1)} deleted`, 'info');
+                } catch (err) {
+                    showToast(err.message || 'Failed to delete message', 'error');
+                    deleteBtn.disabled = false;
+                }
+            });
+        }
+
         const imgWrap = row.querySelector('.chat-image-wrap');
         if (imgWrap) {
             imgWrap.addEventListener('click', () => {
-                openImageLightbox(msg.content);
+                openImageLightbox(msg.content, msg.id, canDelete);
+            });
+        }
+
+        const previewBtn = row.querySelector('.btn-file-preview');
+        if (previewBtn) {
+            previewBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                openTextFilePreview(previewBtn.dataset.previewFile, previewBtn.dataset.previewName, msg.id, canDelete);
             });
         }
 
         dom.chatMessages.appendChild(row);
+    }
+
+    function removeRenderedMessage(msgId) {
+        if (!msgId) return;
+        const numId = Number(msgId);
+        state.renderedMessageIds.delete(numId);
+        state.renderedMessageIds.delete(String(msgId));
+        state.roomMessages.delete(numId);
+
+        const row = dom.chatMessages ? dom.chatMessages.querySelector(`.chat-row[data-message-id="${msgId}"]`) : null;
+        if (row) {
+            row.style.transition = 'opacity 0.2s ease, transform 0.2s ease';
+            row.style.opacity = '0';
+            row.style.transform = 'translateY(-6px)';
+            setTimeout(() => {
+                row.remove();
+            }, 200);
+        }
     }
 
     function updateRenderedMessage(msg) {
@@ -3098,11 +3187,20 @@
         }
     }
 
-    function openImageLightbox(url) {
+    let currentLightboxMsgId = null;
+    function openImageLightbox(url, msgId = null, canDelete = false) {
         if (!dom.imageLightboxModal || !dom.lightboxImg) return;
+        currentLightboxMsgId = msgId;
         dom.lightboxImg.src = url;
         if (dom.lightboxDownloadLink) {
             dom.lightboxDownloadLink.href = url;
+        }
+        if (dom.lightboxDeleteBtn) {
+            if (canDelete && msgId) {
+                dom.lightboxDeleteBtn.classList.remove('hidden');
+            } else {
+                dom.lightboxDeleteBtn.classList.add('hidden');
+            }
         }
         dom.imageLightboxModal.classList.remove('hidden');
     }
@@ -3111,6 +3209,7 @@
         if (!dom.imageLightboxModal) return;
         dom.imageLightboxModal.classList.add('hidden');
         if (dom.lightboxImg) dom.lightboxImg.src = '';
+        currentLightboxMsgId = null;
     }
 
     async function uploadSharedFile(file) {
@@ -3181,13 +3280,22 @@
     }
     const uploadChatImage = uploadSharedFile;
 
-    async function openTextFilePreview(url, name) {
+    let currentPreviewMsgId = null;
+    async function openTextFilePreview(url, name, msgId = null, canDelete = false) {
         if (!dom.filePreviewModal) return;
+        currentPreviewMsgId = msgId;
         if (dom.filePreviewTitle) dom.filePreviewTitle.textContent = name || 'Text File';
         if (dom.filePreviewContent) dom.filePreviewContent.textContent = 'Loading file contents...';
         if (dom.filePreviewDownload) {
             dom.filePreviewDownload.href = url;
             dom.filePreviewDownload.setAttribute('download', name || 'file.txt');
+        }
+        if (dom.filePreviewDeleteBtn) {
+            if (canDelete && msgId) {
+                dom.filePreviewDeleteBtn.classList.remove('hidden');
+            } else {
+                dom.filePreviewDeleteBtn.classList.add('hidden');
+            }
         }
         dom.filePreviewModal.classList.remove('hidden');
 
@@ -3210,6 +3318,7 @@
             dom.filePreviewModal.classList.add('hidden');
             if (dom.filePreviewContent) dom.filePreviewContent.textContent = '';
         }
+        currentPreviewMsgId = null;
     }
 
     // ======================= URL IMAGE PREVIEWS ON HOVER =======================
@@ -4050,13 +4159,36 @@
                 if (e.target === dom.filePreviewModal) closeTextFilePreview();
             });
         }
+        if (dom.filePreviewDeleteBtn) {
+            dom.filePreviewDeleteBtn.addEventListener('click', async () => {
+                if (!currentPreviewMsgId) return;
+                if (!confirm('Are you sure you want to delete this file?')) return;
+                const mid = currentPreviewMsgId;
+                closeTextFilePreview();
+                try {
+                    await apiRequest('delete_message', { message_id: mid });
+                    removeRenderedMessage(mid);
+                    broadcastDataChannelControl({
+                        type: 'delete-msg',
+                        messageId: mid,
+                        roomId: state.activeTextRoomId,
+                    });
+                    showToast('File deleted', 'info');
+                } catch (err) {
+                    showToast(err.message || 'Failed to delete file', 'error');
+                }
+            });
+        }
         document.addEventListener('click', (e) => {
             const btn = e.target.closest('.btn-file-preview');
             if (!btn) return;
             e.preventDefault();
             const fileUrl = btn.getAttribute('data-preview-file');
             const fileName = btn.getAttribute('data-preview-name');
-            openTextFilePreview(fileUrl, fileName);
+            const row = btn.closest('.chat-row');
+            const msgId = row ? row.dataset.messageId : null;
+            const canDelete = row ? Boolean(row.querySelector('.delete-msg-btn')) : false;
+            openTextFilePreview(fileUrl, fileName, msgId, canDelete);
         });
 
         // File Too Large Alert Modal
@@ -4073,6 +4205,26 @@
         if (dom.imageLightboxModal) {
             dom.imageLightboxModal.addEventListener('click', (e) => {
                 if (e.target === dom.imageLightboxModal) closeImageLightbox();
+            });
+        }
+        if (dom.lightboxDeleteBtn) {
+            dom.lightboxDeleteBtn.addEventListener('click', async () => {
+                if (!currentLightboxMsgId) return;
+                if (!confirm('Are you sure you want to delete this image?')) return;
+                const mid = currentLightboxMsgId;
+                closeImageLightbox();
+                try {
+                    await apiRequest('delete_message', { message_id: mid });
+                    removeRenderedMessage(mid);
+                    broadcastDataChannelControl({
+                        type: 'delete-msg',
+                        messageId: mid,
+                        roomId: state.activeTextRoomId,
+                    });
+                    showToast('Image deleted', 'info');
+                } catch (err) {
+                    showToast(err.message || 'Failed to delete image', 'error');
+                }
             });
         }
 
