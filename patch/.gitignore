@@ -1,0 +1,17 @@
+# Local SQLite Database
+database/*.sqlite
+database/*.sqlite-journal
+database/*.sqlite-wal
+database/*.sqlite-shm
+database/*.db
+
+# Uploads (keep directory structure)
+uploads/*
+!uploads/.gitkeep
+
+# OS and Editor files
+.DS_Store
+Thumbs.db
+*.log
+.vscode/
+.idea/

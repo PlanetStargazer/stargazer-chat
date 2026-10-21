@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Stargazer Chat</title>
+    <link rel="preload" href="assets/fonts/Orbitron.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="assets/css/style.css?v=2.4">
+</head>
+<body>
+    <!-- Toast Notifications -->
+    <div id="toast-container" class="toast-container" aria-live="polite"></div>
+
+    <!-- Incoming Call Window Modal -->
+    <div id="invite-modal" class="modal-backdrop hidden incoming-call-backdrop" role="dialog" aria-label="Incoming Call">
+        <div class="incoming-call-window">
+            <div id="invite-avatar-wrap" class="avatar-wrap pulsing-call-ring"></div>
+            <h3 id="invite-title">Incoming Call</h3>
+            <p id="invite-subtitle">is calling you...</p>
+            <div id="invite-timer" class="call-timer-badge">0:30</div>
+            <div class="incoming-call-actions">
+                <button type="button" id="invite-accept-video" class="btn-primary call-act-btn">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+                    <span>Accept (Video)</span>
+                </button>
+                <button type="button" id="invite-accept-voice" class="btn-secondary call-act-btn">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                    <span>Accept (Voice)</span>
+                </button>
+                <button type="button" id="invite-decline" class="btn-danger call-act-btn">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    <span>Decline</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Outgoing Call Window Modal -->
+    <div id="outgoing-call-modal" class="modal-backdrop hidden incoming-call-backdrop" role="dialog" aria-label="Calling User">
+        <div class="incoming-call-window">
+            <div id="outgoing-call-avatar" class="avatar-wrap pulsing-call-ring"></div>
+            <h3 id="outgoing-call-title">Calling...</h3>
+            <p id="outgoing-call-subtitle">Ringing... Waiting for answer</p>
+            <div id="outgoing-call-timer" class="call-timer-badge">0:30</div>
+            <div class="incoming-call-actions single-action">
+                <button type="button" id="cancel-outgoing-call-btn" class="btn-danger call-act-btn">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    <span>End / Cancel Call</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ======================= AUTH SCREEN (SIGN IN / REGISTER) ======================= -->
+    <main id="auth-screen" class="auth-screen">
+        <div class="auth-card">
+            <div class="auth-brand">
+                <div class="brand-icon">
+                    <img src="assets/sgg_logo.png" alt="Stargazer Chat Logo" class="auth-logo-img">
+                </div>
+                <h1 class="brand-title-font">Stargazer Chat</h1>
+                <p id="auth-subtitle">Sign in to your account to continue</p>
+            </div>
+
+            <div class="auth-tabs">
+                <button type="button" id="tab-btn-login" class="auth-tab active">Sign In</button>
+                <button type="button" id="tab-btn-register" class="auth-tab">Create Account</button>
+            </div>
+
+            <!-- Sign In Form -->
+            <form id="login-form" class="auth-form">
+                <div class="field-group">
+                    <label for="login-identifier">Username or Email</label>
+                    <input type="text" id="login-identifier" placeholder="Enter your username or email" required autocomplete="username">
+                </div>
+                <div class="field-group">
+                    <label for="login-password">Password</label>
+                    <input type="password" id="login-password" placeholder="Enter your password" required autocomplete="current-password">
+                </div>
+                <button type="submit" id="login-submit-btn" class="btn-primary full-width">Sign In</button>
+            </form>
+
+            <!-- Create Account Form -->
+            <form id="register-form" class="auth-form hidden">
+                <div class="avatar-upload-row">
+                    <div id="reg-avatar-preview" class="avatar-circle large">U</div>
+                    <div class="avatar-upload-controls">
+                        <label for="reg-avatar-input" class="btn-secondary small upload-label">Upload Avatar (Optional)</label>
+                        <input type="file" id="reg-avatar-input" accept="image/*" class="hidden">
+                        <button type="button" id="reg-avatar-clear" class="btn-ghost small hidden">Use Generic Avatar</button>
+                        <span class="field-hint">JPG, PNG or WebP. Leave blank for a generic avatar.</span>
+                    </div>
+                </div>
+
+                <div class="field-group">
+                    <label for="reg-username">Username</label>
+                    <input type="text" id="reg-username" placeholder="Choose a unique username" maxlength="28" required autocomplete="username">
+                </div>
+
+                <div class="field-group">
+                    <label for="reg-email">Email Address</label>
+                    <input type="email" id="reg-email" placeholder="you@example.com" required autocomplete="email">
+                </div>
+
+                <div class="field-group">
+                    <label for="reg-password">Password</label>
+                    <input type="password" id="reg-password" placeholder="At least 6 characters" minlength="6" required autocomplete="new-password">
+                </div>
+
+                <button type="submit" id="register-submit-btn" class="btn-primary full-width">Create Account</button>
+            </form>
+        </div>
+    </main>
+
+    <!-- ======================= DISCORD-STYLE WORKSPACE ======================= -->
+    <div id="workspace-screen" class="workspace-screen hidden">
+        <!-- Mobile Drawer Backdrops -->
+        <div id="mobile-sidebar-backdrop" class="drawer-backdrop hidden"></div>
+        <div id="mobile-members-backdrop" class="drawer-backdrop hidden"></div>
+
+        <!-- LEFT SIDEBAR: CHANNELS, CONTACTS & USER BAR -->
+        <aside id="main-sidebar" class="sidebar">
+            <header class="sidebar-header">
+                <div class="sidebar-brand">
+                    <img src="assets/sgg_logo.png" alt="Stargazer Chat Logo" class="sidebar-logo-img">
+                    <span class="brand-title-font">Stargazer Chat</span>
+                </div>
+                <button type="button" id="mobile-sidebar-close" class="mobile-drawer-close" title="Close Menu" aria-label="Close Menu">✕</button>
+            </header>
+
+            <div class="sidebar-scroll">
+                <!-- CONTACTS / DIRECT MESSAGES GLASS BOX -->
+                <div class="sidebar-section glass-panel">
+                    <div class="section-header">
+                        <span>CONTACTS <small id="contacts-online-counter">(0 online)</small></span>
+                        <button type="button" id="toggle-add-contact-btn" class="section-icon-btn" title="Add Friend">+</button>
+                    </div>
+
+                    <form id="add-contact-form" class="inline-add-form hidden">
+                        <input type="text" id="add-contact-input" placeholder="Friend's username..." maxlength="32" autocomplete="off">
+                        <button type="submit" class="btn-primary tiny">Add</button>
+                    </form>
+
+                    <div id="contacts-list" class="nav-list"></div>
+                </div>
+
+                <!-- CHANNELS GLASS BOX -->
+                <div class="sidebar-section glass-panel">
+                    <div class="section-header">
+                        <span>CHANNELS</span>
+                        <button type="button" id="toggle-new-channel-btn" class="section-icon-btn" title="Create Channel">+</button>
+                    </div>
+
+                    <form id="create-channel-form" class="inline-add-form hidden">
+                        <input type="text" id="new-channel-input" placeholder="new-channel-name" maxlength="32" autocomplete="off">
+                        <button type="submit" class="btn-primary tiny">Add</button>
+                    </form>
+
+                    <div id="channels-list" class="nav-list"></div>
+                </div>
+            </div>
+
+            <!-- ACTIVE VOICE / VIDEO CALL BAR (Visible when in a call) -->
+            <div id="sidebar-call-bar" class="sidebar-call-bar hidden">
+                <div class="call-bar-top">
+                    <div class="call-bar-status">
+                        <span class="signal-dot"></span>
+                        <div>
+                            <strong>Connected</strong>
+                            <span id="call-bar-room-name">#general</span>
+                        </div>
+                    </div>
+                    <button type="button" id="sidebar-leave-call-btn" class="call-bar-disconnect" title="Disconnect from Call">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                            <path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.42 19.42 0 0 1-3.33-2.67m-2.67-3.34a19.79 19.79 0 0 1-3.07-8.63A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91"/>
+                            <line x1="23" y1="1" x2="1" y2="23"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="call-bar-actions">
+                    <button type="button" id="call-bar-cam-btn" class="call-mini-btn">Video</button>
+                    <button type="button" id="call-bar-screen-btn" class="call-mini-btn">Share Screen</button>
+                </div>
+            </div>
+
+            <!-- BOTTOM CURRENT USER PANEL -->
+            <div class="sidebar-user-panel">
+                <div id="user-status-menu" class="user-status-dropdown hidden" role="menu">
+                    <div class="user-status-menu-header">Set Online Status</div>
+                    <button type="button" class="status-option" data-status-opt="online">
+                        <span class="status-dot online"></span>
+                        <div class="status-text">
+                            <strong>Online</strong>
+                            <small>Visible and receiving notifications</small>
+                        </div>
+                    </button>
+                    <button type="button" class="status-option" data-status-opt="away">
+                        <span class="status-dot away"></span>
+                        <div class="status-text">
+                            <strong>Away</strong>
+                            <small>Temporarily stepping away</small>
+                        </div>
+                    </button>
+                    <button type="button" class="status-option" data-status-opt="dnd">
+                        <span class="status-dot dnd"></span>
+                        <div class="status-text">
+                            <strong>Do Not Disturb</strong>
+                            <small>Mute all calls &amp; notifications</small>
+                        </div>
+                    </button>
+                </div>
+                <div class="user-panel-left" id="user-status-trigger" title="Click to change your online status">
+                    <div id="current-user-avatar" class="avatar-wrap"></div>
+                    <div class="user-panel-meta">
+                        <strong id="current-user-name">User</strong>
+                        <span id="current-user-status" class="user-panel-status">Online</span>
+                    </div>
+                </div>
+                <div class="user-panel-controls">
+                    <button type="button" id="quick-mic-btn" class="panel-icon-btn" title="Mute / Unmute Microphone (M)">
+                        <svg class="icon-mic-on" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                            <line x1="12" y1="19" x2="12" y2="23"/>
+                            <line x1="8" y1="23" x2="16" y2="23"/>
+                        </svg>
+                        <svg class="icon-mic-off hidden" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="1" y1="1" x2="23" y2="23"/>
+                            <path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/>
+                            <path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"/>
+                            <line x1="12" y1="19" x2="12" y2="23"/>
+                            <line x1="8" y1="23" x2="16" y2="23"/>
+                        </svg>
+                    </button>
+                    <button type="button" id="quick-cam-btn" class="panel-icon-btn" title="Camera On / Off (V)">
+                        <svg class="icon-cam-on" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M23 7l-7 5 7 5V7z"/>
+                            <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+                        </svg>
+                        <svg class="icon-cam-off hidden" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M16 16v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2m5.66 0H14a2 2 0 0 1 2 2v3.34l1 1L23 7v10"/>
+                            <line x1="1" y1="1" x2="23" y2="23"/>
+                        </svg>
+                    </button>
+                    <button type="button" id="open-admin-btn" class="panel-icon-btn hidden" title="Admin Control Center (Manage Members)">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                        </svg>
+                    </button>
+                    <button type="button" id="open-settings-btn" class="panel-icon-btn" title="Video, Audio &amp; Account Settings">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="3"/>
+                            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- RIGHT MAIN AREA: HEADER, CALL STAGE & LARGE CHAT -->
+        <section class="main-area">
+            <!-- Top Header Bar -->
+            <header class="main-header">
+                <div class="main-header-left">
+                    <button type="button" id="mobile-sidebar-toggle" class="mobile-nav-toggle" title="Open Channels &amp; Contacts" aria-label="Open Navigation">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="3" y1="12" x2="21" y2="12"></line>
+                            <line x1="3" y1="6" x2="21" y2="6"></line>
+                            <line x1="3" y1="18" x2="21" y2="18"></line>
+                        </svg>
+                    </button>
+                    <span id="room-prefix-icon" class="room-prefix">#</span>
+                    <h2 id="active-room-title">general</h2>
+                    <span id="active-room-subtitle" class="room-subtitle">Channel</span>
+                </div>
+                <div class="main-header-actions">
+                    <button type="button" id="unpin-all-btn" class="header-action-btn hidden">Reset Grid</button>
+                    <button type="button" id="header-voice-btn" class="header-action-btn" title="Join Voice Call">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+                        </svg>
+                        <span>Voice Call</span>
+                    </button>
+                    <button type="button" id="header-video-btn" class="header-action-btn primary" title="Start or Join Video Call">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M23 7l-7 5 7 5V7z"/>
+                            <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+                        </svg>
+                        <span>Video Call</span>
+                    </button>
+                    <button type="button" id="header-leave-btn" class="header-action-btn danger hidden" title="Leave Call">
+                        <span>Leave Call</span>
+                    </button>
+                    <button type="button" id="toggle-members-btn" class="header-action-btn" title="Toggle Member List">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                            <circle cx="9" cy="7" r="4"/>
+                            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                        </svg>
+                        <span>Members</span>
+                    </button>
+                </div>
+            </header>
+
+            <div class="content-body">
+                <div class="center-column">
+                    <!-- Video & Voice Call Stage (Shown when in a call) -->
+                    <div id="call-stage" class="call-stage hidden">
+                        <div id="video-grid" class="video-grid count-1"></div>
+                        <div class="stage-floating-dock">
+                            <button type="button" id="stage-mic-btn" class="stage-ctrl-btn" title="Mute / Unmute Microphone">Mic</button>
+                            <button type="button" id="stage-cam-btn" class="stage-ctrl-btn" title="Turn Camera On / Off">Video</button>
+                            <button type="button" id="stage-screen-btn" class="stage-ctrl-btn" title="Share Screen">Screen</button>
+                            <button type="button" id="stage-leave-btn" class="stage-ctrl-btn danger" title="Leave Call">End Call</button>
+                        </div>
+                    </div>
+
+                    <!-- Large Text Chat Area -->
+                    <div class="chat-area">
+                        <!-- Drag & Drop Overlay for Sharing Files -->
+                        <div id="chat-drop-overlay" class="chat-drop-overlay hidden">
+                            <div class="chat-drop-card">
+                                <div class="chat-drop-icon">
+                                    <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                        <polyline points="17 8 12 3 7 8"/>
+                                        <line x1="12" y1="3" x2="12" y2="15"/>
+                                    </svg>
+                                </div>
+                                <div class="chat-drop-title">Drop files to share</div>
+                                <div class="chat-drop-hint">Images, PDF, TXT, Archives, and Documents (up to 128 MB)</div>
+                            </div>
+                        </div>
+
+                        <div id="chat-messages" class="chat-messages"></div>
+
+                        <div class="chat-composer-wrap">
+                            <!-- Frosted Glass Emoji Picker Popover -->
+                            <div id="emoji-picker-popover" class="emoji-picker-popover hidden" role="dialog" aria-label="Emoji Picker">
+                                <div class="emoji-picker-header">
+                                    <input type="text" id="emoji-search-input" placeholder="Search emojis..." autocomplete="off">
+                                    <div id="emoji-category-tabs" class="emoji-category-tabs"></div>
+                                </div>
+                                <div id="emoji-grid" class="emoji-grid"></div>
+                            </div>
+
+                            <!-- Chat Editing Bar -->
+                            <div id="chat-edit-bar" class="chat-edit-bar hidden">
+                                <div class="chat-edit-bar-left">
+                                    <span class="chat-edit-icon">✏️</span>
+                                    <span class="chat-edit-label">Editing message — press <kbd>Esc</kbd> to cancel, <kbd>Enter</kbd> to save</span>
+                                </div>
+                                <button type="button" id="chat-edit-cancel-btn" class="chat-edit-close" title="Cancel edit">✕</button>
+                            </div>
+
+                            <!-- Chat Upload Progress Bar -->
+                            <div id="chat-upload-bar" class="chat-upload-bar hidden">
+                                <div class="upload-spinner"></div>
+                                <span id="chat-upload-label" class="chat-upload-label">Uploading file...</span>
+                            </div>
+
+                            <!-- Mention Autocomplete Suggestions Box -->
+                            <div id="mention-suggestions" class="mention-dropdown hidden"></div>
+
+                            <form id="chat-form" class="chat-form glass-input-bar">
+                                <button type="button" id="chat-attach-btn" class="chat-icon-btn" title="Share File or Image (Up to 128 MB)">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+                                    </svg>
+                                </button>
+                                <input type="file" id="chat-file-input" accept="*/*" class="hidden" multiple>
+
+                                <button type="button" id="emoji-toggle-btn" class="emoji-trigger-btn" title="Choose Emoji">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <circle cx="12" cy="12" r="10"/>
+                                        <path d="M8 14s1.5 2 4 2 4-2 4-2"/>
+                                        <line x1="9" y1="9" x2="9.01" y2="9"/>
+                                        <line x1="15" y1="9" x2="15.01" y2="9"/>
+                                    </svg>
+                                </button>
+                                <input type="text" id="chat-input" placeholder="Message #general" maxlength="2000" autocomplete="off">
+                                <button type="submit" class="send-btn" title="Send Message">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                                        <line x1="22" y1="2" x2="11" y2="13"/>
+                                        <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                                    </svg>
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Sidebar: User List in Group Channels -->
+                <aside id="members-sidebar" class="members-sidebar">
+                    <div class="mobile-members-header">
+                        <span>Members</span>
+                        <button type="button" id="mobile-members-close" class="mobile-drawer-close" title="Close Member List" aria-label="Close Member List">✕</button>
+                    </div>
+                    <div id="members-list" class="members-list"></div>
+                </aside>
+            </div>
+        </section>
+    </div>
+
+    <!-- ======================= SETTINGS WINDOW MODAL (GEAR ICON) ======================= -->
+    <div id="settings-modal" class="modal-backdrop hidden" role="dialog" aria-label="Settings">
+        <div class="settings-window">
+            <header class="settings-header">
+                <h3>Settings</h3>
+                <button type="button" id="close-settings-btn" class="modal-close-btn" title="Close Settings">✕</button>
+            </header>
+
+            <div class="settings-body">
+                <!-- Video & Audio Settings Section -->
+                <div class="settings-block">
+                    <div class="settings-block-header">
+                        <h4>Video &amp; Audio</h4>
+                        <button type="button" id="test-media-btn" class="btn-secondary tiny">Test Camera &amp; Mic</button>
+                    </div>
+                    <div class="settings-preview-box">
+                        <video id="settings-video-preview" autoplay playsinline muted></video>
+                        <div id="settings-avatar-fallback" class="avatar-fallback">
+                            <div id="settings-preview-avatar" class="avatar-wrap large"></div>
+                            <span id="settings-cam-status-label" class="camera-off-label">Camera &amp; Mic activate only during calls</span>
+                        </div>
+                        <div class="settings-meter-overlay">
+                            <span>Mic Level</span>
+                            <div class="mic-meter-bar">
+                                <div id="settings-mic-level" class="mic-meter-fill"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-fields-grid">
+                        <div class="field-group">
+                            <label for="settings-audio-source">Microphone</label>
+                            <select id="settings-audio-source"></select>
+                        </div>
+                        <div class="field-group">
+                            <label for="settings-video-source">Camera</label>
+                            <select id="settings-video-source"></select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Notifications Settings Section -->
+                <div class="settings-block">
+                    <div class="settings-block-header">
+                        <h4>Notifications</h4>
+                        <span id="notif-permission-badge" class="notif-badge">Checking...</span>
+                    </div>
+
+                    <div class="notif-banner">
+                        <div class="notif-banner-info">
+                            <strong id="notif-banner-title">System &amp; OS Alerts</strong>
+                            <p id="notif-banner-desc" class="field-hint">Serve desktop notifications for direct messages, channel chats, and incoming calls even when minimized or in the background.</p>
+                        </div>
+                        <div class="notif-banner-actions">
+                            <button type="button" id="notif-request-btn" class="btn-primary small">Enable Notifications</button>
+                            <button type="button" id="notif-test-btn" class="btn-secondary small">Send Test Alert</button>
+                        </div>
+                    </div>
+
+                    <div class="settings-toggle-list">
+                        <label class="toggle-row" for="notif-toggle-dm">
+                            <div class="toggle-info">
+                                <span class="toggle-label">Direct Messages</span>
+                                <span class="toggle-sub">Show desktop notification for private chats</span>
+                            </div>
+                            <input type="checkbox" id="notif-toggle-dm" class="frosted-switch" checked>
+                        </label>
+
+                        <label class="toggle-row" for="notif-select-channel">
+                            <div class="toggle-info">
+                                <span class="toggle-label">Channel Activity</span>
+                                <span class="toggle-sub">Notify on messages in channels</span>
+                            </div>
+                            <select id="notif-select-channel" class="notif-select-mini">
+                                <option value="all">All Messages</option>
+                                <option value="none">Disabled</option>
+                            </select>
+                        </label>
+
+                        <label class="toggle-row" for="notif-toggle-calls">
+                            <div class="toggle-info">
+                                <span class="toggle-label">Incoming Calls</span>
+                                <span class="toggle-sub">Alert when someone starts a voice or video call</span>
+                            </div>
+                            <input type="checkbox" id="notif-toggle-calls" class="frosted-switch" checked>
+                        </label>
+
+                        <label class="toggle-row" for="notif-toggle-sound">
+                            <div class="toggle-info">
+                                <span class="toggle-label">Sound Chime</span>
+                                <span class="toggle-sub">Play audio chime on new alerts &amp; invites</span>
+                            </div>
+                            <input type="checkbox" id="notif-toggle-sound" class="frosted-switch" checked>
+                        </label>
+
+                        <label class="toggle-row" for="notif-toggle-bgonly">
+                            <div class="toggle-info">
+                                <span class="toggle-label">Only When In Background</span>
+                                <span class="toggle-sub">Suppress OS popups when Stargazer Chat is focused</span>
+                            </div>
+                            <input type="checkbox" id="notif-toggle-bgonly" class="frosted-switch" checked>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Profile & Account Section -->
+                <div class="settings-block">
+                    <h4>Your Profile</h4>
+                    <div class="profile-settings-row">
+                        <div id="settings-current-avatar" class="avatar-wrap large"></div>
+                        <div class="profile-settings-actions">
+                            <strong id="settings-user-label">Username</strong>
+                            <span id="settings-email-label" class="field-hint">user@example.com</span>
+                            <div class="profile-btn-group">
+                                <label for="settings-avatar-input" class="btn-secondary small upload-label">Upload New Avatar</label>
+                                <input type="file" id="settings-avatar-input" accept="image/*" class="hidden">
+                                <button type="button" id="settings-remove-avatar-btn" class="btn-ghost small">Use Generic Avatar</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Admin Management Section (Visible to Admins only) -->
+                <div id="settings-admin-block" class="settings-block hidden">
+                    <div class="settings-block-header">
+                        <h4>Administration</h4>
+                        <span class="admin-badge-mini">Administrator</span>
+                    </div>
+                    <p class="field-hint">Manage community members, modify user names, toggle bans, or remove accounts from the system.</p>
+                    <button type="button" id="settings-open-admin-btn" class="btn-primary small" style="margin-top: 10px;">Open Admin Control Center</button>
+                </div>
+            </div>
+
+            <footer class="settings-footer">
+                <div class="settings-footer-actions">
+                    <button type="button" id="logout-btn" class="btn-secondary small">Sign Out</button>
+                    <button type="button" id="logout-all-btn" class="btn-danger small">Sign Out All Devices</button>
+                </div>
+                <button type="button" id="done-settings-btn" class="btn-primary small">Done</button>
+            </footer>
+        </div>
+    </div>
+
+    <!-- ======================= ADMIN CONTROL CENTER MODAL ======================= -->
+    <div id="admin-modal" class="modal-backdrop hidden" role="dialog" aria-label="Admin Control Center">
+        <div class="admin-window">
+            <header class="admin-header">
+                <div class="admin-header-left">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" class="admin-header-icon">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                    </svg>
+                    <div>
+                        <h3>Admin Control Center</h3>
+                        <span class="admin-header-sub">Manage community members, saved chats, and file storage</span>
+                    </div>
+                </div>
+                <button type="button" id="close-admin-btn" class="modal-close-btn" title="Close Admin Panel">✕</button>
+            </header>
+
+            <!-- Admin Navigation Tabs -->
+            <nav class="admin-nav-tabs">
+                <button type="button" class="admin-tab-btn active" data-admin-tab="members">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                        <circle cx="9" cy="7" r="4"/>
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                    </svg>
+                    <span>Members</span>
+                </button>
+                <button type="button" class="admin-tab-btn" data-admin-tab="chats">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                    </svg>
+                    <span>Saved Chats</span>
+                </button>
+                <button type="button" class="admin-tab-btn" data-admin-tab="uploads">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                        <circle cx="8.5" cy="8.5" r="1.5"/>
+                        <polyline points="21 15 16 10 5 21"/>
+                    </svg>
+                    <span>Uploads Storage</span>
+                </button>
+            </nav>
+
+            <!-- ================= TAB PANE: MEMBERS ================= -->
+            <div id="admin-pane-members" class="admin-tab-pane">
+                <div class="admin-toolbar">
+                    <div class="admin-search-wrap">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="11" cy="11" r="8"/>
+                            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                        </svg>
+                        <input type="text" id="admin-search-input" placeholder="Search members by username or email..." autocomplete="off">
+                    </div>
+                    <div class="admin-filters">
+                        <button type="button" class="admin-filter-pill active" data-filter="all">All (<span id="admin-count-all">0</span>)</button>
+                        <button type="button" class="admin-filter-pill" data-filter="active">Active (<span id="admin-count-active">0</span>)</button>
+                        <button type="button" class="admin-filter-pill" data-filter="banned">Banned (<span id="admin-count-banned">0</span>)</button>
+                        <button type="button" class="admin-filter-pill" data-filter="admins">Admins (<span id="admin-count-admins">0</span>)</button>
+                    </div>
+                </div>
+
+                <div class="admin-body">
+                    <div id="admin-user-list" class="admin-user-list">
+                        <!-- Dynamic user entries -->
+                    </div>
+                    <div id="admin-empty-msg" class="admin-empty-msg hidden">
+                        <p>No members found matching your search or filter.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ================= TAB PANE: SAVED CHATS ================= -->
+            <div id="admin-pane-chats" class="admin-tab-pane hidden">
+                <div class="admin-toolbar admin-storage-toolbar">
+                    <div class="admin-search-wrap">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="11" cy="11" r="8"/>
+                            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                        </svg>
+                        <input type="text" id="admin-chats-search-input" placeholder="Search saved channels or DMs..." autocomplete="off">
+                    </div>
+                    <div class="admin-stats-summary">
+                        <span id="admin-chats-stat-count">0 chats</span>
+                        <span>•</span>
+                        <span id="admin-chats-stat-msgs">0 messages</span>
+                        <span>•</span>
+                        <strong id="admin-chats-stat-size" style="color: #ffbe76;">0 KB</strong>
+                    </div>
+                </div>
+
+                <div class="admin-body">
+                    <div id="admin-chats-list" class="admin-chats-list">
+                        <!-- Dynamic saved chats entries -->
+                    </div>
+                    <div id="admin-chats-empty-msg" class="admin-empty-msg hidden">
+                        <p>No saved chat histories found.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ================= TAB PANE: UPLOADS STORAGE ================= -->
+            <div id="admin-pane-uploads" class="admin-tab-pane hidden">
+                <div class="admin-toolbar admin-storage-toolbar">
+                    <div class="admin-stats-summary">
+                        <span id="admin-uploads-stat-count">0 uploads</span>
+                        <span>•</span>
+                        <span>Total Storage: <strong id="admin-uploads-stat-size" style="color: #ffbe76;">0 MB</strong></span>
+                    </div>
+                    <button type="button" id="admin-prune-uploads-btn" class="btn-danger small" title="Permanently delete uploaded images older than 14 days">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                            <polyline points="3 6 5 6 21 6"/>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                        </svg>
+                        <span>Prune Uploads &gt; 2 Weeks (<span id="admin-uploads-stat-stale">0</span>)</span>
+                    </button>
+                </div>
+
+                <div class="admin-body">
+                    <div id="admin-uploads-list" class="admin-uploads-list">
+                        <!-- Dynamic upload entries -->
+                    </div>
+                    <div id="admin-uploads-empty-msg" class="admin-empty-msg hidden">
+                        <p>No shared images found in storage.</p>
+                    </div>
+                </div>
+            </div>
+
+            <footer class="admin-footer">
+                <div class="admin-footer-left">
+                    <span id="admin-total-label">Total Users: 0</span>
+                </div>
+                <button type="button" id="done-admin-btn" class="btn-primary small">Done</button>
+            </footer>
+        </div>
+    </div>
+
+    <!-- Admin Rename Dialog Modal -->
+    <div id="admin-rename-modal" class="modal-backdrop hidden sub-modal" role="dialog" aria-label="Rename User">
+        <div class="admin-submodal-window">
+            <header class="settings-header">
+                <h4>Rename Member</h4>
+                <button type="button" id="close-rename-modal-btn" class="modal-close-btn">✕</button>
+            </header>
+            <form id="admin-rename-form">
+                <div class="settings-body" style="padding: 16px 20px;">
+                    <p class="field-hint">Update the username for <strong id="admin-rename-target-display"></strong>.</p>
+                    <div class="field-group" style="margin-top: 12px;">
+                        <label for="admin-rename-input">New Username</label>
+                        <input type="text" id="admin-rename-input" required maxlength="32" autocomplete="off" placeholder="New username">
+                    </div>
+                </div>
+                <footer class="settings-footer">
+                    <button type="button" id="cancel-rename-modal-btn" class="btn-ghost small">Cancel</button>
+                    <button type="submit" class="btn-primary small">Save Username</button>
+                </footer>
+            </form>
+        </div>
+    </div>
+
+    <!-- Admin Ban Dialog Modal -->
+    <div id="admin-ban-modal" class="modal-backdrop hidden sub-modal" role="dialog" aria-label="Ban User">
+        <div class="admin-submodal-window">
+            <header class="settings-header">
+                <h4>Ban Member</h4>
+                <button type="button" id="close-ban-modal-btn" class="modal-close-btn">✕</button>
+            </header>
+            <form id="admin-ban-form">
+                <div class="settings-body" style="padding: 16px 20px;">
+                    <p class="field-hint">Are you sure you want to ban <strong id="admin-ban-target-display"></strong>?</p>
+                    <p class="field-hint" style="margin-top: 6px;">All active sessions will be terminated immediately, and they will be disconnected.</p>
+                    <div class="field-group" style="margin-top: 12px;">
+                        <label for="admin-ban-reason-input">Reason (Optional)</label>
+                        <input type="text" id="admin-ban-reason-input" maxlength="200" placeholder="e.g. Violation of community guidelines">
+                    </div>
+                </div>
+                <footer class="settings-footer">
+                    <button type="button" id="cancel-ban-modal-btn" class="btn-ghost small">Cancel</button>
+                    <button type="submit" class="btn-danger small">Confirm Ban</button>
+                </footer>
+            </form>
+        </div>
+    </div>
+
+    <!-- Admin Delete Dialog Modal -->
+    <div id="admin-delete-modal" class="modal-backdrop hidden sub-modal" role="dialog" aria-label="Delete User">
+        <div class="admin-submodal-window">
+            <header class="settings-header">
+                <h4>Delete Member</h4>
+                <button type="button" id="close-delete-modal-btn" class="modal-close-btn">✕</button>
+            </header>
+            <form id="admin-delete-form">
+                <div class="settings-body" style="padding: 16px 20px;">
+                    <p class="field-hint" style="color: #ff8888;"><strong>Warning:</strong> You are about to permanently delete <strong id="admin-delete-target-display"></strong>.</p>
+                    <p class="field-hint" style="margin-top: 8px;">This will completely remove their account, sessions, contacts, and messages from the server. This action cannot be undone.</p>
+                </div>
+                <footer class="settings-footer">
+                    <button type="button" id="cancel-delete-modal-btn" class="btn-ghost small">Cancel</button>
+                    <button type="submit" class="btn-danger small">Delete Permanently</button>
+                </footer>
+            </form>
+        </div>
+    </div>
+
+    <!-- Admin Generic Confirmation Modal -->
+    <div id="admin-confirm-modal" class="modal-backdrop hidden sub-modal" role="dialog" aria-label="Confirm Action">
+        <div class="admin-submodal-window">
+            <header class="settings-header">
+                <h4 id="admin-confirm-title">Confirm Action</h4>
+                <button type="button" id="close-confirm-modal-btn" class="modal-close-btn">✕</button>
+            </header>
+            <div class="settings-body" style="padding: 18px 20px;">
+                <p id="admin-confirm-message" class="field-hint" style="color: #fff; font-size: 0.95rem;"></p>
+                <p id="admin-confirm-subtext" class="field-hint" style="margin-top: 8px; color: #ff9999;"></p>
+            </div>
+            <footer class="settings-footer">
+                <button type="button" id="cancel-confirm-modal-btn" class="btn-ghost small">Cancel</button>
+                <button type="button" id="proceed-confirm-modal-btn" class="btn-danger small">Confirm</button>
+            </footer>
+        </div>
+    </div>
+
+    <!-- Styled Modal for Oversized Uploads (Exceeds 128 MB) -->
+    <div id="file-too-large-modal" class="modal-backdrop hidden sub-modal" role="dialog" aria-label="File Too Large">
+        <div class="admin-submodal-window file-alert-window">
+            <header class="settings-header alert-header">
+                <div class="alert-header-title">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ff7b7b" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                        <line x1="12" y1="9" x2="12" y2="13"/>
+                        <line x1="12" y1="17" x2="12.01" y2="17"/>
+                    </svg>
+                    <h4>File Too Large</h4>
+                </div>
+                <button type="button" id="close-file-alert-btn" class="modal-close-btn">✕</button>
+            </header>
+            <div class="settings-body" style="padding: 18px 20px;">
+                <p class="field-hint" style="color: #fff; font-size: 0.95rem;">The selected file exceeds the maximum allowed upload limit.</p>
+                <div class="file-size-box">
+                    <div class="file-size-row">
+                        <span>Selected File:</span>
+                        <strong id="file-too-large-actual" style="color: #ff7b7b;">145.2 MB</strong>
+                    </div>
+                    <div class="file-size-row">
+                        <span>Maximum Allowed:</span>
+                        <strong style="color: #ffbe76;">128.0 MB</strong>
+                    </div>
+                </div>
+                <p class="field-hint" style="margin-top: 10px;">Please choose a file under 128 MB or compress it before uploading.</p>
+            </div>
+            <footer class="settings-footer" style="justify-content: flex-end;">
+                <button type="button" id="done-file-alert-btn" class="btn-primary small">Got It</button>
+            </footer>
+        </div>
+    </div>
+
+    <!-- Image Lightbox Modal for Full View -->
+    <div id="image-lightbox-modal" class="modal-backdrop hidden sub-modal" role="dialog" aria-label="View Image">
+        <div class="lightbox-content">
+            <button type="button" id="close-lightbox-btn" class="lightbox-close-btn" title="Close">✕</button>
+            <img id="lightbox-img" src="" alt="Full view" class="lightbox-image">
+            <div class="lightbox-toolbar">
+                <a id="lightbox-download-link" href="" target="_blank" download class="btn-secondary small">Open / Save Original</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Text File Quick-View Modal -->
+    <div id="file-preview-modal" class="modal-backdrop hidden sub-modal" role="dialog" aria-label="File Preview">
+        <div class="file-preview-window">
+            <header class="settings-header">
+                <div class="file-preview-header-info">
+                    <span class="file-preview-icon">📄</span>
+                    <h4 id="file-preview-modal-title">document.txt</h4>
+                </div>
+                <button type="button" id="close-file-preview-btn" class="modal-close-btn">✕</button>
+            </header>
+            <div class="file-preview-body">
+                <pre id="file-preview-modal-content" class="file-preview-code"></pre>
+            </div>
+            <footer class="settings-footer">
+                <a id="file-preview-modal-download" href="" download class="btn-secondary small">⬇ Download File</a>
+                <button type="button" id="done-file-preview-btn" class="btn-primary small">Close</button>
+            </footer>
+        </div>
+    </div>
+
+    <!-- Floating URL Image Preview Popover on Hover -->
+    <div id="link-preview-popover" class="link-preview-popover hidden" role="tooltip">
+        <div class="link-preview-media">
+            <img class="link-preview-img" src="" alt="Preview image" loading="lazy">
+            <div class="link-preview-spinner"></div>
+            <div class="link-preview-badge">🌐 Preview</div>
+        </div>
+        <div class="link-preview-body">
+            <div class="link-preview-domain"></div>
+            <h5 class="link-preview-title"></h5>
+            <p class="link-preview-desc"></p>
+        </div>
+    </div>
+
+    <script src="assets/js/app.js?v=2.5"></script>
+</body>
+</html>
