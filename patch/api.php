@@ -235,6 +235,16 @@ CREATE TABLE IF NOT EXISTS deleted_messages (
     deleted_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_del_msg_room_time ON deleted_messages(room_id, deleted_at);
+
+CREATE TABLE IF NOT EXISTS password_resets (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT NOT NULL,
+    token_hash TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    expires_at INTEGER NOT NULL,
+    used INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_pw_resets_hash ON password_resets(token_hash);
 SQL;
         $this->exec($schema);
 
@@ -649,6 +659,11 @@ function cleanupStaleData(ChatDatabase $db): void
     // Clean up old deleted message notices older than 5 minutes
     try {
         $db->execute('DELETE FROM deleted_messages WHERE deleted_at < :cutoff', [':cutoff' => $now - 300]);
+    } catch (\Throwable $e) {}
+
+    // Clean up expired password reset tokens older than 24 hours
+    try {
+        $db->execute('DELETE FROM password_resets WHERE expires_at < :cutoff', [':cutoff' => $now - 86400]);
     } catch (\Throwable $e) {}
 
     // Also scan uploads directory for any orphan/temporary files older than 7 days
@@ -1080,6 +1095,182 @@ try {
             ]);
         }
 
+        case 'forgot_password': {
+            $email = trim((string)($input['email'] ?? ''));
+            if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                respond(['ok' => false, 'error' => 'Please provide a valid email address.'], 400);
+            }
+
+            $user = $db->queryOne(
+                'SELECT user_id, username, email FROM users WHERE email = :email COLLATE NOCASE AND is_banned = 0',
+                [':email' => $email]
+            );
+
+            $mailSent = false;
+            $devLink = null;
+            if ($user && !empty($user['user_id'])) {
+                $uid = (string)$user['user_id'];
+                $db->execute('UPDATE password_resets SET used = 1 WHERE user_id = :uid AND used = 0', [':uid' => $uid]);
+
+                $rawToken = bin2hex(random_bytes(24));
+                $tokenHash = hash('sha256', $rawToken);
+                $expiresAt = $now + 3600; // 1 hour validity
+
+                $db->execute(
+                    'INSERT INTO password_resets (user_id, token_hash, created_at, expires_at, used)
+                     VALUES (:uid, :hash, :cat, :eat, 0)',
+                    [
+                        ':uid' => $uid,
+                        ':hash' => $tokenHash,
+                        ':cat' => $now,
+                        ':eat' => $expiresAt,
+                    ]
+                );
+
+                $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (isset($_SERVER['SERVER_PORT']) && (int)$_SERVER['SERVER_PORT'] === 443) ? 'https' : 'http';
+                $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+                $requestUri = $_SERVER['REQUEST_URI'] ?? '/';
+                $baseUri = preg_replace('#api\.php.*$#i', '', $requestUri);
+                $resetUrl = $scheme . '://' . $host . $baseUri . '?reset_token=' . $rawToken;
+
+                $cleanHost = preg_replace('/:[0-9]+$/', '', $host);
+                $fromEmail = 'noreply@' . ($cleanHost ?: 'localhost');
+
+                $subject = 'Password Reset Request — Stargazer Chat';
+                $safeName = htmlspecialchars((string)$user['username'], ENT_QUOTES, 'UTF-8');
+                $safeUrl = htmlspecialchars($resetUrl, ENT_QUOTES, 'UTF-8');
+
+                $htmlBody = <<<HTML
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #0b0914; color: #f1edfa; padding: 24px; margin: 0; }
+  .box { max-width: 520px; margin: 0 auto; background: #181329; border: 1px solid rgba(228, 205, 255, 0.2); border-radius: 14px; padding: 32px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+  h2 { color: #f6f2ff; margin-top: 0; font-size: 1.4rem; }
+  p { color: #cfc2e8; font-size: 0.95rem; line-height: 1.55; }
+  .btn { display: inline-block; background: linear-gradient(135deg, #c85a9e, #8254c4); color: #ffffff !important; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-weight: 600; font-size: 0.95rem; margin: 20px 0; }
+  .footer { margin-top: 24px; font-size: 0.78rem; color: #8e7ea8; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 16px; }
+  .url-text { word-break: break-all; font-size: 0.8rem; color: #9d8db8; }
+</style>
+</head>
+<body>
+  <div class="box">
+    <h2>Stargazer Chat — Password Reset</h2>
+    <p>Hello <strong>{$safeName}</strong>,</p>
+    <p>We received a request to reset the password for your Stargazer Chat account. Click the button below to set a new password:</p>
+    <p><a href="{$safeUrl}" class="btn">Reset My Password</a></p>
+    <p>This password reset link is valid for <strong>1 hour</strong>. If you did not request a password reset, you can safely ignore this email; your existing password will remain unchanged.</p>
+    <div class="footer">
+      <p>If the button doesn't work, copy and paste this URL into your browser:</p>
+      <p class="url-text"><a href="{$safeUrl}" style="color: #ffbe76;">{$safeUrl}</a></p>
+    </div>
+  </div>
+</body>
+</html>
+HTML;
+
+                $headers = [
+                    'MIME-Version: 1.0',
+                    'Content-Type: text/html; charset=UTF-8',
+                    'From: Stargazer Chat <' . $fromEmail . '>',
+                    'Reply-To: ' . $fromEmail,
+                    'X-Mailer: PHP/' . phpversion(),
+                ];
+
+                $mailSent = @mail((string)$user['email'], $subject, $htmlBody, implode("\r\n", $headers));
+
+                if (!str_contains($host, '.') || str_contains($host, 'localhost') || !$mailSent) {
+                    $devLink = $resetUrl;
+                }
+            }
+
+            respond([
+                'ok' => true,
+                'message' => 'If that email address is registered, a password reset link has been sent.',
+                'emailSent' => (bool)$mailSent,
+                'devLink' => $devLink,
+            ]);
+        }
+
+        case 'verify_reset_token': {
+            $token = trim((string)($input['token'] ?? ($_GET['token'] ?? '')));
+            if ($token === '') {
+                respond(['ok' => false, 'error' => 'Missing reset token.', 'code' => 'INVALID_TOKEN'], 400);
+            }
+
+            $tokenHash = hash('sha256', $token);
+            $row = $db->queryOne(
+                'SELECT r.id, r.user_id, r.expires_at, r.used, u.username, u.email
+                 FROM password_resets r
+                 INNER JOIN users u ON u.user_id = r.user_id
+                 WHERE r.token_hash = :hash AND r.expires_at > :now AND r.used = 0',
+                [':hash' => $tokenHash, ':now' => $now]
+            );
+
+            if (!$row) {
+                respond(['ok' => false, 'error' => 'This password reset link is invalid or has expired. Please request a new one.', 'code' => 'INVALID_TOKEN'], 400);
+            }
+
+            respond([
+                'ok' => true,
+                'username' => (string)$row['username'],
+            ]);
+        }
+
+        case 'reset_password': {
+            $token = trim((string)($input['token'] ?? ''));
+            $newPassword = (string)($input['password'] ?? '');
+            $confirmPassword = (string)($input['confirm_password'] ?? ($input['password_confirm'] ?? ''));
+
+            if ($token === '') {
+                respond(['ok' => false, 'error' => 'Missing reset token.'], 400);
+            }
+
+            if (strlen($newPassword) < 6) {
+                respond(['ok' => false, 'error' => 'Password must be at least 6 characters long.'], 400);
+            }
+
+            if ($newPassword !== $confirmPassword) {
+                respond(['ok' => false, 'error' => 'The entered passwords do not match.'], 400);
+            }
+
+            $tokenHash = hash('sha256', $token);
+            $row = $db->queryOne(
+                'SELECT r.id, r.user_id, r.expires_at, r.used, u.username, u.email
+                 FROM password_resets r
+                 INNER JOIN users u ON u.user_id = r.user_id
+                 WHERE r.token_hash = :hash AND r.expires_at > :now AND r.used = 0',
+                [':hash' => $tokenHash, ':now' => $now]
+            );
+
+            if (!$row) {
+                respond(['ok' => false, 'error' => 'This password reset link is invalid or has expired. Please request a new one.'], 400);
+            }
+
+            $uid = (string)$row['user_id'];
+            $newHash = password_hash($newPassword, PASSWORD_DEFAULT);
+
+            $db->execute('UPDATE users SET password_hash = :phash WHERE user_id = :uid', [
+                ':phash' => $newHash,
+                ':uid' => $uid,
+            ]);
+
+            $db->execute('UPDATE password_resets SET used = 1 WHERE id = :id', [':id' => $row['id']]);
+            $db->execute('DELETE FROM user_sessions WHERE user_id = :uid', [':uid' => $uid]);
+
+            $authToken = createUserSession($db, $uid, $input);
+            $user = $db->queryOne('SELECT * FROM users WHERE user_id = :uid', [':uid' => $uid]);
+
+            respond([
+                'ok' => true,
+                'message' => 'Your password has been successfully reset. You are now logged in.',
+                'authToken' => $authToken,
+                'user' => formatUserPublic($user),
+            ]);
+        }
+
         case 'logout': {
             $user = requireAuthenticatedUser($db, $input);
             $allDevices = !empty($input['all_devices']);
@@ -1422,17 +1613,33 @@ try {
                 respond(['ok' => false, 'error' => 'Missing room ID.'], 400);
             }
 
-            // Remove associated image files from disk
-            $images = $db->queryAll('SELECT content FROM messages WHERE room_id = :rid AND type = "image"', [':rid' => $roomId]);
-            foreach ($images as $img) {
-                $filePath = __DIR__ . '/' . ltrim((string)$img['content'], '/\\');
-                if (is_file($filePath)) {
-                    @unlink($filePath);
+            // Remove associated uploaded files and images from disk
+            $files = $db->queryAll('SELECT type, content FROM messages WHERE room_id = :rid AND type IN ("image", "file")', [':rid' => $roomId]);
+            foreach ($files as $f) {
+                $path = null;
+                if ($f['type'] === 'image') {
+                    $path = (string)$f['content'];
+                } else {
+                    $meta = json_decode((string)$f['content'], true);
+                    if (is_array($meta) && !empty($meta['url'])) {
+                        $path = (string)$meta['url'];
+                    }
+                }
+                if ($path) {
+                    $base = basename($path);
+                    $full = __DIR__ . '/uploads/' . $base;
+                    if (is_file($full)) {
+                        @unlink($full);
+                    }
                 }
             }
 
             // Delete messages
             $db->execute('DELETE FROM messages WHERE room_id = :rid', [':rid' => $roomId]);
+            $db->execute(
+                'INSERT INTO deleted_messages (message_id, room_id, deleted_at) VALUES (0, :rid, :now)',
+                [':rid' => $roomId, ':now' => $now]
+            );
 
             // If custom channel (not 'general' and not DM), remove channel entry & update users
             if ($roomId !== 'general' && !str_starts_with($roomId, 'dm-')) {

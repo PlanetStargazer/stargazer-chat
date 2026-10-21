@@ -339,6 +339,26 @@
         cancelConfirmModalBtn: document.getElementById('cancel-confirm-modal-btn'),
         proceedConfirmModalBtn: document.getElementById('proceed-confirm-modal-btn'),
         closeConfirmModalBtn: document.getElementById('close-confirm-modal-btn'),
+
+        // Forgot Password & Reset
+        forgotPasswordLink: document.getElementById('forgot-password-link'),
+        forgotPasswordModal: document.getElementById('forgot-password-modal'),
+        closeForgotPwBtn: document.getElementById('close-forgot-pw-btn'),
+        cancelForgotPwBtn: document.getElementById('cancel-forgot-pw-btn'),
+        forgotPasswordForm: document.getElementById('forgot-password-form'),
+        forgotPwEmail: document.getElementById('forgot-pw-email'),
+        submitForgotPwBtn: document.getElementById('submit-forgot-pw-btn'),
+        forgotPwResult: document.getElementById('forgot-pw-result'),
+
+        newPasswordModal: document.getElementById('new-password-modal'),
+        closeNewPwBtn: document.getElementById('close-new-pw-btn'),
+        cancelNewPwBtn: document.getElementById('cancel-new-pw-btn'),
+        newPasswordForm: document.getElementById('new-password-form'),
+        newPwUserHint: document.getElementById('new-pw-user-hint'),
+        newPwInput: document.getElementById('new-pw-input'),
+        newPwConfirmInput: document.getElementById('new-pw-confirm-input'),
+        submitNewPwBtn: document.getElementById('submit-new-pw-btn'),
+        newPwResult: document.getElementById('new-pw-result'),
     };
 
     // ======================= HELPERS =======================
@@ -954,6 +974,186 @@
                 dom.registerSubmitBtn.disabled = false;
             }
         });
+
+        // Forgot Password Flow
+        if (dom.forgotPasswordLink) {
+            dom.forgotPasswordLink.addEventListener('click', (e) => {
+                e.preventDefault();
+                openForgotPasswordModal();
+            });
+        }
+        if (dom.closeForgotPwBtn) dom.closeForgotPwBtn.addEventListener('click', closeForgotPasswordModal);
+        if (dom.cancelForgotPwBtn) dom.cancelForgotPwBtn.addEventListener('click', closeForgotPasswordModal);
+        if (dom.forgotPasswordModal) {
+            dom.forgotPasswordModal.addEventListener('click', (e) => {
+                if (e.target === dom.forgotPasswordModal) closeForgotPasswordModal();
+            });
+        }
+
+        if (dom.forgotPasswordForm) {
+            dom.forgotPasswordForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const email = dom.forgotPwEmail ? dom.forgotPwEmail.value.trim() : '';
+                if (!email) return;
+
+                if (dom.submitForgotPwBtn) dom.submitForgotPwBtn.disabled = true;
+                if (dom.forgotPwResult) {
+                    dom.forgotPwResult.className = 'auth-message-box';
+                    dom.forgotPwResult.textContent = 'Sending reset instructions...';
+                    dom.forgotPwResult.classList.remove('hidden');
+                }
+
+                try {
+                    const res = await apiRequest('forgot_password', { email });
+                    if (dom.forgotPwResult) {
+                        let html = escapeHtml(res.message || 'If that email address is registered, password reset instructions have been sent.');
+                        if (res.devLink) {
+                            html += `<div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.15);"><strong style="color:#ffbe76;">Direct Reset Link:</strong><br><a href="${escapeHtml(res.devLink)}" style="color:#6ee7b7;text-decoration:underline;word-break:break-all;">${escapeHtml(res.devLink)}</a></div>`;
+                        }
+                        dom.forgotPwResult.innerHTML = html;
+                        dom.forgotPwResult.className = 'auth-message-box';
+                    }
+                    showToast('Password reset link sent! Check your inbox.', 'info');
+                } catch (err) {
+                    if (dom.forgotPwResult) {
+                        dom.forgotPwResult.textContent = err.message || 'Failed to send reset link.';
+                        dom.forgotPwResult.className = 'auth-message-box error';
+                    }
+                    showToast(err.message || 'Failed to send reset link', 'error');
+                } finally {
+                    if (dom.submitForgotPwBtn) dom.submitForgotPwBtn.disabled = false;
+                }
+            });
+        }
+
+        // New Password Flow (via emailed reset token)
+        if (dom.closeNewPwBtn) dom.closeNewPwBtn.addEventListener('click', closeNewPasswordModal);
+        if (dom.cancelNewPwBtn) dom.cancelNewPwBtn.addEventListener('click', closeNewPasswordModal);
+        if (dom.newPasswordModal) {
+            dom.newPasswordModal.addEventListener('click', (e) => {
+                if (e.target === dom.newPasswordModal) closeNewPasswordModal();
+            });
+        }
+
+        if (dom.newPasswordForm) {
+            dom.newPasswordForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const password = dom.newPwInput ? dom.newPwInput.value : '';
+                const confirmPassword = dom.newPwConfirmInput ? dom.newPwConfirmInput.value : '';
+
+                if (password.length < 6) {
+                    showToast('Password must be at least 6 characters long.', 'warning');
+                    return;
+                }
+                if (password !== confirmPassword) {
+                    showToast('The entered passwords do not match.', 'error');
+                    return;
+                }
+
+                if (dom.submitNewPwBtn) dom.submitNewPwBtn.disabled = true;
+                if (dom.newPwResult) {
+                    dom.newPwResult.className = 'auth-message-box';
+                    dom.newPwResult.textContent = 'Updating your password...';
+                    dom.newPwResult.classList.remove('hidden');
+                }
+
+                try {
+                    const res = await apiRequest('reset_password', {
+                        token: state.resetToken,
+                        password,
+                        confirm_password: confirmPassword,
+                    });
+
+                    state.authToken = res.authToken;
+                    state.user = res.user;
+                    localStorage.setItem('pulsechat_token', state.authToken);
+                    closeNewPasswordModal();
+
+                    // Clean URL param
+                    if (window.history && window.history.replaceState) {
+                        const cleanUrl = window.location.pathname + window.location.hash.replace(/[?&]reset_token=[^&]+/, '');
+                        window.history.replaceState(null, '', cleanUrl);
+                    }
+
+                    showToast('Password updated! Welcome back to Stargazer Chat.', 'success');
+                    await enterWorkspace();
+                } catch (err) {
+                    if (dom.newPwResult) {
+                        dom.newPwResult.textContent = err.message || 'Failed to update password.';
+                        dom.newPwResult.className = 'auth-message-box error';
+                    }
+                    showToast(err.message || 'Failed to update password', 'error');
+                } finally {
+                    if (dom.submitNewPwBtn) dom.submitNewPwBtn.disabled = false;
+                }
+            });
+        }
+    }
+
+    function openForgotPasswordModal() {
+        if (!dom.forgotPasswordModal) return;
+        if (dom.forgotPwEmail) {
+            dom.forgotPwEmail.value = dom.loginIdentifier ? dom.loginIdentifier.value.trim() : '';
+        }
+        if (dom.forgotPwResult) {
+            dom.forgotPwResult.classList.add('hidden');
+            dom.forgotPwResult.textContent = '';
+        }
+        dom.forgotPasswordModal.classList.remove('hidden');
+        if (dom.forgotPwEmail) dom.forgotPwEmail.focus();
+    }
+
+    function closeForgotPasswordModal() {
+        if (dom.forgotPasswordModal) {
+            dom.forgotPasswordModal.classList.add('hidden');
+        }
+    }
+
+    function openNewPasswordModal(username, token) {
+        state.resetToken = token;
+        if (!dom.newPasswordModal) return;
+        if (dom.newPwUserHint) {
+            dom.newPwUserHint.innerHTML = username
+                ? `Choose a new password for <strong>@${escapeHtml(username)}</strong>.`
+                : 'Choose a new password for your account.';
+        }
+        if (dom.newPwInput) dom.newPwInput.value = '';
+        if (dom.newPwConfirmInput) dom.newPwConfirmInput.value = '';
+        if (dom.newPwResult) {
+            dom.newPwResult.classList.add('hidden');
+            dom.newPwResult.textContent = '';
+        }
+        dom.newPasswordModal.classList.remove('hidden');
+        if (dom.newPwInput) dom.newPwInput.focus();
+    }
+
+    function closeNewPasswordModal() {
+        if (dom.newPasswordModal) {
+            dom.newPasswordModal.classList.add('hidden');
+        }
+        state.resetToken = null;
+    }
+
+    async function checkPasswordResetUrl() {
+        const urlParams = new URLSearchParams(window.location.search);
+        let token = urlParams.get('reset_token');
+
+        if (!token && window.location.hash.includes('reset_token=')) {
+            const hashMatch = window.location.hash.match(/reset_token=([a-zA-Z0-9_-]+)/);
+            if (hashMatch) token = hashMatch[1];
+        }
+
+        if (!token) return;
+
+        try {
+            const res = await apiRequest('verify_reset_token', { token });
+            openNewPasswordModal(res.username || 'User', token);
+        } catch (err) {
+            showToast(err.message || 'This password reset link is invalid or has expired.', 'error');
+            if (window.history && window.history.replaceState) {
+                window.history.replaceState(null, '', window.location.pathname);
+            }
+        }
     }
 
     function switchAuthTab(mode) {
@@ -4935,6 +5135,9 @@
         bindAuthEvents();
         bindWorkspaceEvents();
         bindAdminEvents();
+
+        // Check if user followed a password reset link (?reset_token=...)
+        await checkPasswordResetUrl();
 
         if (state.authToken) {
             await enterWorkspace();

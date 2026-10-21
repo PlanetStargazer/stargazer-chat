@@ -74,7 +74,10 @@
                     <input type="text" id="login-identifier" placeholder="Enter your username or email" required autocomplete="username">
                 </div>
                 <div class="field-group">
-                    <label for="login-password">Password</label>
+                    <div class="label-with-action">
+                        <label for="login-password">Password</label>
+                        <button type="button" id="forgot-password-link" class="auth-text-link">Forgot password?</button>
+                    </div>
                     <input type="password" id="login-password" placeholder="Enter your password" required autocomplete="current-password">
                 </div>
                 <button type="submit" id="login-submit-btn" class="btn-primary full-width">Sign In</button>
@@ -871,6 +874,62 @@
             <div class="link-preview-domain"></div>
             <h5 class="link-preview-title"></h5>
             <p class="link-preview-desc"></p>
+        </div>
+    </div>
+
+    <!-- Forgot Password Modal -->
+    <div id="forgot-password-modal" class="modal-backdrop hidden sub-modal" role="dialog" aria-label="Reset Password">
+        <div class="settings-window small-modal">
+            <header class="settings-header">
+                <h4>Reset Password</h4>
+                <button type="button" id="close-forgot-pw-btn" class="modal-close-btn">✕</button>
+            </header>
+            <form id="forgot-password-form">
+                <div class="settings-body" style="padding: 20px;">
+                    <p class="field-hint" style="color: var(--text-secondary); margin-bottom: 16px; font-size: 0.88rem; line-height: 1.5;">
+                        Enter your registered email address and we'll send you a link to reset your password.
+                    </p>
+                    <div class="field-group">
+                        <label for="forgot-pw-email">Email Address</label>
+                        <input type="email" id="forgot-pw-email" placeholder="you@domain.com" required autocomplete="email">
+                    </div>
+                    <div id="forgot-pw-result" class="auth-message-box hidden"></div>
+                </div>
+                <footer class="settings-footer">
+                    <button type="button" id="cancel-forgot-pw-btn" class="btn-ghost small">Cancel</button>
+                    <button type="submit" id="submit-forgot-pw-btn" class="btn-primary small">Send Reset Link</button>
+                </footer>
+            </form>
+        </div>
+    </div>
+
+    <!-- Set New Password Modal (via emailed reset token) -->
+    <div id="new-password-modal" class="modal-backdrop hidden sub-modal" role="dialog" aria-label="Set New Password">
+        <div class="settings-window small-modal">
+            <header class="settings-header">
+                <h4>Set New Password</h4>
+                <button type="button" id="close-new-pw-btn" class="modal-close-btn">✕</button>
+            </header>
+            <form id="new-password-form">
+                <div class="settings-body" style="padding: 20px;">
+                    <p id="new-pw-user-hint" class="field-hint" style="color: var(--text-secondary); margin-bottom: 16px; font-size: 0.88rem;">
+                        Choose a new password for your account.
+                    </p>
+                    <div class="field-group">
+                        <label for="new-pw-input">New Password</label>
+                        <input type="password" id="new-pw-input" placeholder="At least 6 characters" minlength="6" required autocomplete="new-password">
+                    </div>
+                    <div class="field-group" style="margin-top: 12px;">
+                        <label for="new-pw-confirm-input">Confirm New Password</label>
+                        <input type="password" id="new-pw-confirm-input" placeholder="Repeat your new password" minlength="6" required autocomplete="new-password">
+                    </div>
+                    <div id="new-pw-result" class="auth-message-box hidden"></div>
+                </div>
+                <footer class="settings-footer">
+                    <button type="button" id="cancel-new-pw-btn" class="btn-ghost small">Cancel</button>
+                    <button type="submit" id="submit-new-pw-btn" class="btn-primary small">Update Password</button>
+                </footer>
+            </form>
         </div>
     </div>
 
